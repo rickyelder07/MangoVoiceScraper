@@ -1,0 +1,32 @@
+# Environment variables (NEVER commit credentials!)
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+
+# Downloaded files
+call_recordings/
+*.mp3
+
+# Output files
+*.csv
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
