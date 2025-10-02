@@ -259,7 +259,7 @@ class MangoVoiceSeleniumScraper:
         Scrape a single page of call logs.
         
         Args:
-            page_num: Page number to scrape
+            page_num: Page number to scrape (for logging only)
             
         Returns:
             Tuple of (list of call data dicts, has_next_page boolean)
@@ -267,17 +267,7 @@ class MangoVoiceSeleniumScraper:
         logger.info(f"Scraping page {page_num}...")
         
         try:
-            # Navigate to the page if not already there
-            if page_num == 1:
-                current_url = self.driver.current_url
-                if 'logs' not in current_url:
-                    self.driver.get(self.logs_url)
-            else:
-                # Navigate to specific page
-                page_url = f"{self.logs_url}?page={page_num}"
-                self.driver.get(page_url)
-            
-            # Wait for table to load
+            # Wait for table to load (should already be loaded)
             wait = WebDriverWait(self.driver, 10)
             table = wait.until(
                 EC.presence_of_element_located((By.ID, 'listLogs'))
@@ -300,8 +290,9 @@ class MangoVoiceSeleniumScraper:
                     
                     call_data_list.append(call_data)
             
-            # Check if there's a next page button
+            # Check if there's a next page button and if it's enabled
             has_next = False
+            next_button = None
             try:
                 next_button = self.driver.find_element(By.LINK_TEXT, 'Next')
                 # Check if it's enabled (not in a disabled parent)
@@ -312,6 +303,18 @@ class MangoVoiceSeleniumScraper:
                 pass
             
             logger.info(f"Scraped {len(call_data_list)} records from page {page_num}")
+            
+            # If there's a next page, click the Next button to navigate
+            # This preserves search filters unlike loading a new URL
+            if has_next and next_button:
+                logger.info("Clicking 'Next' button to preserve search filters...")
+                next_button.click()
+                # Wait for the new page to load (table will refresh)
+                time.sleep(2)
+                wait.until(EC.staleness_of(table))
+                # Wait for new table to appear
+                wait.until(EC.presence_of_element_located((By.ID, 'listLogs')))
+            
             return call_data_list, has_next
             
         except TimeoutException:
@@ -324,6 +327,9 @@ class MangoVoiceSeleniumScraper:
     def scrape_all_pages(self, max_pages: Optional[int] = None) -> List[Dict]:
         """
         Scrape all pages of call logs.
+        
+        This method clicks the 'Next' button to navigate between pages,
+        which preserves any search filters applied by the user.
         
         Args:
             max_pages: Maximum number of pages to scrape (None for all)
@@ -340,14 +346,12 @@ class MangoVoiceSeleniumScraper:
                 logger.info(f"Reached maximum page limit: {max_pages}")
                 break
             
+            # Scrape current page and navigate to next if available
+            # The scrape_page method handles clicking Next button
             page_data, has_next = self.scrape_page(page_num)
             all_data.extend(page_data)
             
             page_num += 1
-            
-            # Brief delay between pages
-            if has_next:
-                time.sleep(2)
         
         logger.info(f"Total records scraped: {len(all_data)}")
         return all_data

@@ -77,12 +77,14 @@ audiocode/
 
 ## 💡 Tips
 
-### Using Search Filters
+### Using Search Filters (PRESERVED ACROSS PAGES!)
 The scraper pauses after login to let you apply filters:
 - **Date Range**: Use the date pickers to select specific dates
 - **Phone Numbers**: Search for specific caller/recipient
 - **Call Direction**: Filter by Inbound/Outbound
 - **Press ENTER**: When ready, go back to terminal and press Enter
+
+**Important:** Filters are preserved! The scraper clicks the "Next" button instead of loading new URLs, so your search criteria stay active across all pages. 🎯
 
 ### Speed Up Testing
 - Use `test_scraper.py` first (1 page only)
