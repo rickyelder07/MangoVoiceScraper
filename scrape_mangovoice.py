@@ -292,7 +292,6 @@ class MangoVoiceSeleniumScraper:
             
             # Check if there's a next page button and if it's enabled
             has_next = False
-            next_button = None
             try:
                 next_button = self.driver.find_element(By.LINK_TEXT, 'Next')
                 # Check if it's enabled (not in a disabled parent)
@@ -304,17 +303,6 @@ class MangoVoiceSeleniumScraper:
             
             logger.info(f"Scraped {len(call_data_list)} records from page {page_num}")
             
-            # If there's a next page, click the Next button to navigate
-            # This preserves search filters unlike loading a new URL
-            if has_next and next_button:
-                logger.info("Clicking 'Next' button to preserve search filters...")
-                next_button.click()
-                # Wait for the new page to load (table will refresh)
-                time.sleep(2)
-                wait.until(EC.staleness_of(table))
-                # Wait for new table to appear
-                wait.until(EC.presence_of_element_located((By.ID, 'listLogs')))
-            
             return call_data_list, has_next
             
         except TimeoutException:
@@ -323,6 +311,45 @@ class MangoVoiceSeleniumScraper:
         except Exception as e:
             logger.error(f"Error scraping page {page_num}: {e}")
             return [], False
+    
+    def click_next_page(self) -> bool:
+        """
+        Click the 'Next' button to navigate to next page.
+        This preserves search filters unlike loading a new URL.
+        
+        Returns:
+            True if successfully navigated, False otherwise
+        """
+        try:
+            wait = WebDriverWait(self.driver, 10)
+            
+            # Find and click the Next button
+            next_button = self.driver.find_element(By.LINK_TEXT, 'Next')
+            logger.info("Clicking 'Next' button to preserve search filters...")
+            
+            # Store reference to current table for staleness check
+            table = self.driver.find_element(By.ID, 'listLogs')
+            
+            # Click the button
+            next_button.click()
+            
+            # Wait for the old table to become stale (page is changing)
+            wait.until(EC.staleness_of(table))
+            
+            # Wait for new table to appear
+            wait.until(EC.presence_of_element_located((By.ID, 'listLogs')))
+            
+            # Brief pause for page to fully render
+            time.sleep(1)
+            
+            return True
+            
+        except (TimeoutException, NoSuchElementException) as e:
+            logger.error(f"Error clicking Next button: {e}")
+            return False
+        except Exception as e:
+            logger.error(f"Unexpected error navigating to next page: {e}")
+            return False
     
     def scrape_all_pages(self, max_pages: Optional[int] = None) -> List[Dict]:
         """
@@ -346,10 +373,17 @@ class MangoVoiceSeleniumScraper:
                 logger.info(f"Reached maximum page limit: {max_pages}")
                 break
             
-            # Scrape current page and navigate to next if available
-            # The scrape_page method handles clicking Next button
+            # Scrape current page
             page_data, has_next = self.scrape_page(page_num)
+            
+            # Add data to our collection (even if navigation fails later)
             all_data.extend(page_data)
+            
+            # If there's a next page, navigate to it
+            if has_next:
+                if not self.click_next_page():
+                    logger.warning("Failed to navigate to next page, stopping pagination")
+                    break
             
             page_num += 1
         
