@@ -321,31 +321,45 @@ class MangoVoiceSeleniumScraper:
             True if successfully navigated, False otherwise
         """
         try:
-            wait = WebDriverWait(self.driver, 10)
+            wait = WebDriverWait(self.driver, 15)
             
-            # Find and click the Next button
-            next_button = self.driver.find_element(By.LINK_TEXT, 'Next')
+            # Get the current first row's text before clicking (to detect change)
+            table = self.driver.find_element(By.ID, 'listLogs')
+            tbody = table.find_element(By.TAG_NAME, 'tbody')
+            first_row = tbody.find_element(By.TAG_NAME, 'tr')
+            old_first_row_text = first_row.text
+            
             logger.info("Clicking 'Next' button to preserve search filters...")
             
-            # Store reference to current table for staleness check
-            table = self.driver.find_element(By.ID, 'listLogs')
+            # Find the Next button
+            next_button = self.driver.find_element(By.LINK_TEXT, 'Next')
             
-            # Click the button
-            next_button.click()
+            # Use JavaScript click to ensure it works even if obscured
+            self.driver.execute_script("arguments[0].click();", next_button)
             
-            # Wait for the old table to become stale (page is changing)
-            wait.until(EC.staleness_of(table))
+            # Wait for the table content to change (DataTables updates via AJAX)
+            # We wait for the first row text to be different
+            def first_row_changed(driver):
+                try:
+                    new_tbody = driver.find_element(By.ID, 'listLogs').find_element(By.TAG_NAME, 'tbody')
+                    new_first_row = new_tbody.find_element(By.TAG_NAME, 'tr')
+                    return new_first_row.text != old_first_row_text
+                except:
+                    return False
             
-            # Wait for new table to appear
-            wait.until(EC.presence_of_element_located((By.ID, 'listLogs')))
+            wait.until(first_row_changed)
             
             # Brief pause for page to fully render
             time.sleep(1)
             
+            logger.info("✓ Successfully navigated to next page")
             return True
             
-        except (TimeoutException, NoSuchElementException) as e:
-            logger.error(f"Error clicking Next button: {e}")
+        except TimeoutException:
+            logger.error("Timeout waiting for next page to load (table content didn't change)")
+            return False
+        except NoSuchElementException as e:
+            logger.error(f"Could not find Next button or table: {e}")
             return False
         except Exception as e:
             logger.error(f"Unexpected error navigating to next page: {e}")
