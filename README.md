@@ -51,9 +51,16 @@ A Python script to extract call logs and download audio recordings from MangoVoi
    - Complete the reCAPTCHA if prompted
    - The script waits up to 5 minutes for you to log in
 
-4. **Script automatically continues** after successful login
-   - Navigates to Legacy Call Logs
-   - Scrapes all pages
+4. **Apply search criteria** (optional)
+   - After login, browser shows Legacy Call Logs page
+   - Apply any filters you want:
+     - Date range (e.g., last 30 days)
+     - Search by phone number
+     - Filter by call direction (Inbound/Outbound)
+   - Press **ENTER in the terminal** when ready
+
+5. **Script automatically continues** scraping
+   - Scrapes all pages (with your filters applied)
    - Downloads MP3 files
    - Exports to CSV
 
@@ -83,8 +90,12 @@ scraper = MangoVoiceSeleniumScraper(
     headless=False  # Set to True to hide browser (not recommended for login)
 )
 
-# Scrape first 5 pages only
-scraper.run(max_pages=5, output_csv="call_logs_sample.csv")
+# Scrape first 5 pages only, with filter pause
+scraper.run(
+    max_pages=5, 
+    output_csv="call_logs_sample.csv",
+    allow_search_criteria=True  # Set to False to skip filter pause
+)
 ```
 
 ## Output

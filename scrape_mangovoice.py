@@ -119,7 +119,7 @@ class MangoVoiceSeleniumScraper:
             
             # Check if we made it to the logs page
             if 'logs' in self.driver.current_url:
-                logger.info("✓ Login successful! Continuing with scraping...")
+                logger.info("✓ Login successful!")
                 return True
             else:
                 logger.error("Login failed or timeout reached")
@@ -130,6 +130,34 @@ class MangoVoiceSeleniumScraper:
             return False
         except Exception as e:
             logger.error(f"Error during login wait: {e}")
+            return False
+    
+    def wait_for_search_criteria(self):
+        """
+        Pause to allow user to apply filters/search criteria on the page.
+        """
+        logger.info("=" * 60)
+        logger.info("APPLY SEARCH CRITERIA (OPTIONAL)")
+        logger.info("=" * 60)
+        logger.info("The browser is now on the Legacy Call Logs page.")
+        logger.info("")
+        logger.info("You can now:")
+        logger.info("  • Set date range filters")
+        logger.info("  • Search for specific phone numbers")
+        logger.info("  • Apply any other search criteria")
+        logger.info("  • Leave as-is to scrape all records")
+        logger.info("")
+        logger.info("=" * 60)
+        logger.info("Press ENTER in this terminal when ready to start scraping...")
+        logger.info("=" * 60)
+        
+        try:
+            input()  # Wait for user to press Enter
+            logger.info("✓ Starting scrape with current filters...")
+            time.sleep(2)  # Brief pause to ensure any filters are applied
+            return True
+        except KeyboardInterrupt:
+            logger.info("Scraping cancelled by user")
             return False
     
     def parse_table_row(self, row_element) -> Optional[Dict[str, str]]:
@@ -345,13 +373,15 @@ class MangoVoiceSeleniumScraper:
         except Exception as e:
             logger.error(f"Error exporting to CSV: {e}")
     
-    def run(self, max_pages: Optional[int] = None, output_csv: str = "call_logs.csv"):
+    def run(self, max_pages: Optional[int] = None, output_csv: str = "call_logs.csv", 
+            allow_search_criteria: bool = True):
         """
         Main execution method.
         
         Args:
             max_pages: Maximum number of pages to scrape (None for all)
             output_csv: Output CSV filename
+            allow_search_criteria: If True, pause for user to apply search filters
         """
         logger.info("Starting MangoVoice scraper with Selenium...")
         
@@ -364,7 +394,13 @@ class MangoVoiceSeleniumScraper:
                 logger.error("Failed to login. Exiting.")
                 return
             
-            # Step 3: Scrape all pages
+            # Step 3: Allow user to apply search criteria
+            if allow_search_criteria:
+                if not self.wait_for_search_criteria():
+                    logger.info("Scraping cancelled. Exiting.")
+                    return
+            
+            # Step 4: Scrape all pages
             logger.info(f"Scraping Legacy Call Logs from: {self.logs_url}")
             all_data = self.scrape_all_pages(max_pages=max_pages)
             
@@ -372,7 +408,7 @@ class MangoVoiceSeleniumScraper:
                 logger.warning("No data scraped. Exiting.")
                 return
             
-            # Step 4: Export to CSV
+            # Step 5: Export to CSV
             self.export_to_csv(all_data, output_csv)
             
             logger.info("Scraping completed successfully!")
@@ -394,7 +430,12 @@ def main():
     
     # Run the scraper
     # Set max_pages=1 for testing, None for all pages
-    scraper.run(max_pages=None, output_csv="mangovoice_call_logs.csv")
+    # Set allow_search_criteria=True to pause for filters
+    scraper.run(
+        max_pages=None, 
+        output_csv="mangovoice_call_logs.csv",
+        allow_search_criteria=True
+    )
 
 
 if __name__ == "__main__":

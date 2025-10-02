@@ -29,10 +29,16 @@ python3 test_scraper.py
 4. ✅ Complete reCAPTCHA if prompted
 5. ✅ Script detects successful login
 6. ✅ Browser navigates to Legacy Call Logs
-7. ✅ Script scrapes first page (25 entries)
-8. ✅ Downloads MP3 files to `./test_recordings/`
-9. ✅ Creates `test_call_logs.csv`
-10. ✅ Browser closes automatically
+7. ✅ **PAUSE: Apply search filters** (optional)
+   - Set date range (e.g., last 30 days)
+   - Search by phone number
+   - Apply any other filters
+   - Or leave as-is for all records
+8. ✅ **Press ENTER in terminal** to start scraping
+9. ✅ Script scrapes first page (25 entries with your filters)
+10. ✅ Downloads MP3 files to `./test_recordings/`
+11. ✅ Creates `test_call_logs.csv`
+12. ✅ Browser closes automatically
 
 **Time: 2-3 minutes total**
 
@@ -71,10 +77,27 @@ audiocode/
 
 ## 💡 Tips
 
+### Using Search Filters
+The scraper pauses after login to let you apply filters:
+- **Date Range**: Use the date pickers to select specific dates
+- **Phone Numbers**: Search for specific caller/recipient
+- **Call Direction**: Filter by Inbound/Outbound
+- **Press ENTER**: When ready, go back to terminal and press Enter
+
 ### Speed Up Testing
 - Use `test_scraper.py` first (1 page only)
 - Check CSV and MP3s look correct
 - Then run full scraper
+
+### Skip Filters (Auto Mode)
+If you want to skip the filter pause:
+```python
+scraper.run(
+    max_pages=None,
+    output_csv="call_logs.csv",
+    allow_search_criteria=False  # No pause, start immediately
+)
+```
 
 ### Troubleshooting
 - **Browser doesn't open?** → Make sure Chrome is installed

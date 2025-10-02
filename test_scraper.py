@@ -17,7 +17,7 @@ def test_single_page():
     print("="*60)
     print("\nA browser window will open.")
     print("Please log in to MangoVoice when prompted.")
-    print("The script will automatically continue after login.\n")
+    print("You'll have a chance to apply search filters before scraping.\n")
     print("="*60 + "\n")
     
     # Initialize scraper
@@ -26,8 +26,12 @@ def test_single_page():
         headless=False
     )
     
-    # Run with max 1 page
-    scraper.run(max_pages=1, output_csv="test_call_logs.csv")
+    # Run with max 1 page, with search criteria pause enabled
+    scraper.run(
+        max_pages=1, 
+        output_csv="test_call_logs.csv",
+        allow_search_criteria=True
+    )
     
     print("\n" + "="*60)
     print("Test complete! Check:")
