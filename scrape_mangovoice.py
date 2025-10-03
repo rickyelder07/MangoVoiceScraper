@@ -230,6 +230,9 @@ class MangoVoiceSeleniumScraper:
         safe_source = re.sub(r'[^\w\-_]', '_', source)
         safe_dest = re.sub(r'[^\w\-_]', '_', destination)
         
+        # Ensure output directory exists
+        self.output_dir.mkdir(exist_ok=True, parents=True)
+        
         # Create base filename
         base_filename = f"{safe_time}_{safe_source}_to_{safe_dest}"
         filename = f"{base_filename}.mp3"
