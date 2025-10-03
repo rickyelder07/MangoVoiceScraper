@@ -209,7 +209,7 @@ class MangoVoiceSeleniumScraper:
     
     def download_mp3(self, url: str, call_data: Dict[str, str]) -> Optional[str]:
         """
-        Download MP3 file and return the local filename.
+        Download MP3 file with retry logic and verification.
         
         Args:
             url: URL of the MP3 file
@@ -218,41 +218,78 @@ class MangoVoiceSeleniumScraper:
         Returns:
             Local filename if successful, None otherwise
         """
-        try:
-            # Generate a safe filename based on call data
-            call_time = call_data.get("Call Time", "unknown")
-            source = call_data.get("Source Number", "unknown")
-            destination = call_data.get("Destination Number", "unknown")
-            
-            # Clean the filename
-            safe_time = re.sub(r'[^\w\-_]', '_', call_time)
-            safe_source = re.sub(r'[^\w\-_]', '_', source)
-            safe_dest = re.sub(r'[^\w\-_]', '_', destination)
-            
-            filename = f"{safe_time}_{safe_source}_to_{safe_dest}.mp3"
-            filepath = self.output_dir / filename
-            
-            # Download the file using requests (more efficient than Selenium)
-            logger.info(f"Downloading: {filename}")
-            
-            # Get cookies from Selenium session
-            selenium_cookies = self.driver.get_cookies()
-            cookies = {cookie['name']: cookie['value'] for cookie in selenium_cookies}
-            
-            response = requests.get(url, cookies=cookies, stream=True, timeout=30)
-            response.raise_for_status()
-            
-            # Save to disk
-            with open(filepath, 'wb') as f:
-                for chunk in response.iter_content(chunk_size=8192):
-                    f.write(chunk)
-            
-            logger.info(f"Successfully downloaded: {filename}")
-            return filename
-            
-        except Exception as e:
-            logger.error(f"Error downloading MP3 from {url}: {e}")
-            return None
+        # Generate a safe filename based on call data
+        call_time = call_data.get("Call Time", "unknown")
+        source = call_data.get("Source Number", "unknown")
+        destination = call_data.get("Destination Number", "unknown")
+        
+        # Clean the filename
+        safe_time = re.sub(r'[^\w\-_]', '_', call_time)
+        safe_source = re.sub(r'[^\w\-_]', '_', source)
+        safe_dest = re.sub(r'[^\w\-_]', '_', destination)
+        
+        filename = f"{safe_time}_{safe_source}_to_{safe_dest}.mp3"
+        filepath = self.output_dir / filename
+        
+        # Retry logic (3 attempts)
+        for attempt in range(3):
+            try:
+                if attempt > 0:
+                    logger.info(f"  Retry {attempt}/3: {filename}")
+                else:
+                    logger.info(f"Downloading: {filename}")
+                
+                # Get cookies from Selenium session
+                selenium_cookies = self.driver.get_cookies()
+                cookies = {cookie['name']: cookie['value'] for cookie in selenium_cookies}
+                
+                response = requests.get(url, cookies=cookies, stream=True, timeout=30)
+                response.raise_for_status()
+                
+                # Check if we got actual content
+                if 'content-length' in response.headers:
+                    content_length = int(response.headers['content-length'])
+                    if content_length < 100:  # MP3 should be larger than 100 bytes
+                        logger.warning(f"  File too small ({content_length} bytes), may be invalid")
+                
+                # Save to disk
+                bytes_written = 0
+                with open(filepath, 'wb') as f:
+                    for chunk in response.iter_content(chunk_size=8192):
+                        if chunk:  # filter out keep-alive chunks
+                            f.write(chunk)
+                            bytes_written += len(chunk)
+                
+                # Verify file was actually written
+                if filepath.exists() and filepath.stat().st_size > 0:
+                    logger.info(f"  ✓ Downloaded: {filename} ({bytes_written} bytes)")
+                    return filename
+                else:
+                    logger.error(f"  File created but empty: {filename}")
+                    if attempt < 2:
+                        time.sleep(1)  # Brief pause before retry
+                        continue
+                    return None
+                    
+            except requests.exceptions.Timeout:
+                logger.warning(f"  Timeout downloading {filename} (attempt {attempt + 1}/3)")
+                if attempt < 2:
+                    time.sleep(2)
+                    continue
+            except requests.exceptions.RequestException as e:
+                logger.error(f"  Request error downloading {filename}: {e}")
+                if attempt < 2:
+                    time.sleep(1)
+                    continue
+            except Exception as e:
+                logger.error(f"  Unexpected error downloading {filename}: {e}")
+                if attempt < 2:
+                    time.sleep(1)
+                    continue
+        
+        # All retries failed
+        logger.error(f"  ✗ FAILED after 3 attempts: {filename}")
+        return None
     
     def scrape_page(self, page_num: int = 1) -> tuple[List[Dict], bool]:
         """
@@ -406,7 +443,7 @@ class MangoVoiceSeleniumScraper:
     
     def export_to_csv(self, data: List[Dict], output_file: str = "call_logs.csv"):
         """
-        Export scraped data to CSV file.
+        Export scraped data to CSV file and show download summary.
         
         Args:
             data: List of call data dictionaries
@@ -421,6 +458,23 @@ class MangoVoiceSeleniumScraper:
                 writer.writerows(data)
             
             logger.info(f"Successfully exported {len(data)} records to {output_file}")
+            
+            # Show download summary
+            total_calls = len(data)
+            downloaded = sum(1 for record in data if record.get('Call'))
+            failed = total_calls - downloaded
+            
+            logger.info("=" * 60)
+            logger.info("DOWNLOAD SUMMARY")
+            logger.info("=" * 60)
+            logger.info(f"Total call records: {total_calls}")
+            logger.info(f"Successfully downloaded: {downloaded}")
+            if failed > 0:
+                logger.warning(f"Failed/Missing downloads: {failed}")
+                logger.info("Check the log above for '✗ FAILED' messages to see which files failed")
+            else:
+                logger.info(f"✓ All MP3 files downloaded successfully!")
+            logger.info("=" * 60)
             
         except Exception as e:
             logger.error(f"Error exporting to CSV: {e}")
