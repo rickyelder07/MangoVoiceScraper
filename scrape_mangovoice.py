@@ -230,8 +230,20 @@ class MangoVoiceSeleniumScraper:
         safe_source = re.sub(r'[^\w\-_]', '_', source)
         safe_dest = re.sub(r'[^\w\-_]', '_', destination)
         
-        filename = f"{safe_time}_{safe_source}_to_{safe_dest}.mp3"
+        # Create base filename
+        base_filename = f"{safe_time}_{safe_source}_to_{safe_dest}"
+        filename = f"{base_filename}.mp3"
         filepath = self.output_dir / filename
+        
+        # If file already exists, add counter to make it unique
+        counter = 1
+        while filepath.exists():
+            filename = f"{base_filename}_{counter}.mp3"
+            filepath = self.output_dir / filename
+            counter += 1
+            if counter > 100:  # Safety limit
+                logger.error(f"Too many duplicate filenames for {base_filename}")
+                return None
         
         # Retry logic (3 attempts)
         for attempt in range(3):
