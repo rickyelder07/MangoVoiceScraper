@@ -48,8 +48,10 @@ class MangoVoiceSeleniumScraper:
             output_dir: Directory to save downloaded MP3 files
             headless: Run browser in headless mode (not recommended for login)
         """
-        self.output_dir = Path(output_dir)
-        self.output_dir.mkdir(exist_ok=True)
+        self.output_dir = Path(output_dir).resolve()  # Get absolute path
+        self.output_dir.mkdir(exist_ok=True, parents=True)
+        
+        logger.info(f"MP3 files will be saved to: {self.output_dir}")
         
         self.base_url = "https://admin.mangovoice.com"
         self.logs_url = f"{self.base_url}/super/account/logs/3417"
@@ -315,7 +317,7 @@ class MangoVoiceSeleniumScraper:
             rows = tbody.find_elements(By.TAG_NAME, 'tr')
             
             call_data_list = []
-            for row in rows:
+            for row_idx, row in enumerate(rows, 1):
                 call_data = self.parse_table_row(row)
                 if call_data:
                     # Download MP3 if link exists
@@ -324,6 +326,10 @@ class MangoVoiceSeleniumScraper:
                         filename = self.download_mp3(mp3_url, call_data)
                         if filename:
                             call_data['Call'] = filename
+                        else:
+                            logger.warning(f"  Row {row_idx}: Download failed, 'Call' column will be empty")
+                    else:
+                        logger.debug(f"  Row {row_idx}: No recording available")
                     
                     call_data_list.append(call_data)
             
