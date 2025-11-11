@@ -9,6 +9,7 @@ Date: 2025-10-02
 """
 
 import os
+import sys
 import csv
 import time
 import requests
@@ -24,13 +25,29 @@ import logging
 from typing import Dict, List, Optional
 from pathlib import Path
 import re
+import stat
+
+# Determine runtime base directory (script folder or bundled executable folder)
+def get_runtime_base_dir() -> Path:
+    """
+    Return the directory containing the running script or PyInstaller executable.
+    """
+    if getattr(sys, "frozen", False):
+        # Running from PyInstaller bundle
+        return Path(sys.executable).resolve().parent
+    return Path(__file__).resolve().parent
+
+
+RUNTIME_BASE_DIR = get_runtime_base_dir()
+LOG_FILE = RUNTIME_BASE_DIR / "mangovoice_scraper.log"
+
 
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler('mangovoice_scraper.log'),
+        logging.FileHandler(LOG_FILE),
         logging.StreamHandler()
     ]
 )
@@ -40,7 +57,7 @@ logger = logging.getLogger(__name__)
 class MangoVoiceSeleniumScraper:
     """Scraper for MangoVoice call logs using Selenium."""
     
-    def __init__(self, output_dir: str = "./downloads", headless: bool = False):
+    def __init__(self, output_dir: Optional[str] = None, headless: bool = False):
         """
         Initialize the scraper.
         
@@ -48,7 +65,16 @@ class MangoVoiceSeleniumScraper:
             output_dir: Directory to save downloaded MP3 files
             headless: Run browser in headless mode (not recommended for login)
         """
-        self.output_dir = Path(output_dir).resolve()  # Get absolute path
+        self.base_dir = RUNTIME_BASE_DIR
+
+        if output_dir:
+            output_path = Path(output_dir)
+            if not output_path.is_absolute():
+                output_path = (self.base_dir / output_path).resolve()
+            self.output_dir = output_path
+        else:
+            self.output_dir = (self.base_dir / "call_recordings").resolve()
+
         self.output_dir.mkdir(exist_ok=True, parents=True)
         
         logger.info(f"MP3 files will be saved to: {self.output_dir}")
@@ -79,11 +105,45 @@ class MangoVoiceSeleniumScraper:
         options.add_experimental_option('useAutomationExtension', False)
         
         # Use webdriver-manager to automatically handle ChromeDriver
-        service = Service(ChromeDriverManager().install())
+        raw_driver_path = ChromeDriverManager().install()
+        driver_path = self._resolve_driver_binary(raw_driver_path)
+        service = Service(str(driver_path))
         self.driver = webdriver.Chrome(service=service, options=options)
         self.driver.maximize_window()
         
         logger.info("WebDriver ready!")
+
+    def _resolve_driver_binary(self, raw_path: str) -> Path:
+        """
+        Normalize webdriver-manager output to the actual ChromeDriver executable.
+
+        Args:
+            raw_path: Path returned by webdriver-manager install()
+
+        Returns:
+            Absolute path to the ChromeDriver binary with execute permissions.
+        """
+        path = Path(raw_path).resolve()
+
+        def _is_driver(candidate: Path) -> bool:
+            return candidate.name in {"chromedriver", "chromedriver.exe"}
+
+        if path.is_file() and _is_driver(path):
+            if not os.access(path, os.X_OK):
+                path.chmod(path.stat().st_mode | stat.S_IEXEC)
+            return path
+
+        search_dir = path.parent if path.suffix else path
+        for candidate in sorted(search_dir.glob("chromedriver*")):
+            if candidate.is_file() and _is_driver(candidate):
+                if not os.access(candidate, os.X_OK):
+                    candidate.chmod(candidate.stat().st_mode | stat.S_IEXEC)
+                logger.debug(f"Resolved ChromeDriver executable at {candidate}")
+                return candidate
+
+        raise FileNotFoundError(
+            f"ChromeDriver executable not found near webdriver-manager path: {raw_path}"
+        )
     
     def wait_for_manual_login(self, timeout: int = 300):
         """
@@ -453,23 +513,30 @@ class MangoVoiceSeleniumScraper:
         logger.info(f"Total records scraped: {len(all_data)}")
         return all_data
     
-    def export_to_csv(self, data: List[Dict], output_file: str = "call_logs.csv"):
+    def export_to_csv(self, data: List[Dict], output_file: Optional[str] = None):
         """
         Export scraped data to CSV file and show download summary.
         
         Args:
             data: List of call data dictionaries
-            output_file: Output CSV filename
+            output_file: Output CSV filename or path
         """
-        logger.info(f"Exporting data to {output_file}...")
+        if output_file:
+            output_path = Path(output_file)
+            if not output_path.is_absolute():
+                output_path = (self.base_dir / output_path).resolve()
+        else:
+            output_path = self.base_dir / "mangovoice_call_logs.csv"
+
+        logger.info(f"Exporting data to {output_path}...")
         
         try:
-            with open(output_file, 'w', newline='', encoding='utf-8') as csvfile:
+            with open(output_path, 'w', newline='', encoding='utf-8') as csvfile:
                 writer = csv.DictWriter(csvfile, fieldnames=self.csv_headers)
                 writer.writeheader()
                 writer.writerows(data)
             
-            logger.info(f"Successfully exported {len(data)} records to {output_file}")
+            logger.info(f"Successfully exported {len(data)} records to {output_path}")
             
             # Show download summary
             total_calls = len(data)

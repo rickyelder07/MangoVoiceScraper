@@ -117,10 +117,12 @@ The script generates:
    - Call (filename of downloaded MP3)
 
 2. **MP3 Files** (`./call_recordings/`):
+   - Saved next to the script or bundled executable that launched the scraper
    - Named as: `{call_time}_{source}_{destination}.mp3`
    - Only downloaded if available for that call
 
 3. **Log File** (`mangovoice_scraper.log`):
+   - Created alongside the script/binary
    - Detailed execution log
 
 ## Configuration
@@ -159,6 +161,12 @@ All errors are logged to both console and `mangovoice_scraper.log`.
 - The script uses your browser session for authenticated requests
 - Downloaded MP3s and CSV files contain call data - handle appropriately
 - The `.gitignore` file protects sensitive data files
+
+## Packaged Builds
+
+Executable distributions for macOS and Windows can be produced with PyInstaller.
+Follow the detailed steps in `docs/pyinstaller-builds.md` for dependency audit,
+build commands, signing guidance, and post-build verification.
 
 ## Troubleshooting
 

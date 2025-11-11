@@ -18,6 +18,8 @@ call_recordings/
 # Output files
 *.csv
 *.log
+build/
+dist/
 
 # IDE
 .vscode/
